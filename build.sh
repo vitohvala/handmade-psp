@@ -9,7 +9,7 @@ fi
 
 BINDIR='build'
 CC='psp-gcc'
-TARGET='psp_handmade.c'
+TARGET='code/psp_handmade.c'
 BIN=$BINDIR'/handmade.elf'
 FLAGS='-Wall'
 LIBS='-lpspdebug -lpspdisplay -lpspge -lpspctrl -lpspgu'

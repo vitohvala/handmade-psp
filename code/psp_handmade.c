@@ -6,7 +6,6 @@
 #include <pspgu.h>
 
 #include <stdint.h>
-#include <stdlib.h>
 
 
 
@@ -67,7 +66,7 @@ exit_callback(int arg1, int arg2, void *common)
 }
 
 internal int 
-CallbackThread(SceSize args, void *argp) 
+callback_thread(SceSize args, void *argp) 
 {
     int cbid;
     cbid = sceKernelCreateCallback("Exit Callback", exit_callback, 0);
@@ -77,20 +76,39 @@ CallbackThread(SceSize args, void *argp)
 }
 
 internal int 
-SetupCallbacks(void) 
+setup_callbacks(void) 
 {
     int thid = 0;
-    thid = sceKernelCreateThread("Update Thread", CallbackThread, 0x11, 0xFA0, 0, 0);
+    thid = sceKernelCreateThread("Update Thread", callback_thread, 0x11, 0xFA0, 0, 0);
     if(thid >= 0) {
         sceKernelStartThread(thid, 0, 0);
     }
     return thid;
 }
 
+internal void
+render_weird_gradient(i32 x_offset, i32 y_offset, u32 *buffer) 
+{
+    u8 *row = (u8*)buffer;
+    
+    for(int y = 0; y < SCREEN_HEIGHT; ++y) {
+        u32 *pixel = (u32*)row;
+        for(int x = 0; x < SCREEN_WIDTH; ++x) {
+            u8 green = (u8)((y + y_offset) * 2);
+            u8 blue = (u8)((x + x_offset) * 2);
+            *pixel++ = blue << 16 | green << 8;
+        }
+        row += (BUFF_WIDTH * 4);
+    }
+}
+
 int 
 main() 
 {
-    SetupCallbacks();
+    setup_callbacks();
+
+    sceCtrlSetSamplingCycle(0);
+    sceCtrlSetSamplingMode(PSP_CTRL_MODE_ANALOG);
 
     sceGuInit();
     sceGuStart(GU_DIRECT, list);
@@ -102,29 +120,52 @@ main()
 
     u32 *backbuffer = (u32*)(0x40000000 | 0x04000000);
 
-    int x_offset = 0;
+    i32 x_offset = 0;
+    i32 y_offset = 0;
     i32 disp_buffer = 0;
 
     running = true;
 
+    SceCtrlData pad;
+
     for(;running;) {
+
+        sceCtrlReadBufferPositive(&pad, 1);
+
+        u8 stick_lx = pad.Lx;
+        u8 stick_ly = pad.Ly;
+        //i16 stick_rx = pad.Rx;
+        //i16 stick_ry = pad.Ry;
+
+        if (pad.Buttons != 0){
+            b32 square = pad.Buttons & PSP_CTRL_SQUARE;
+            b32 triangle = pad.Buttons & PSP_CTRL_TRIANGLE;
+            b32 circle = pad.Buttons & PSP_CTRL_CIRCLE;
+            b32 cross = pad.Buttons & PSP_CTRL_CROSS;
+            
+            b32 up = pad.Buttons & PSP_CTRL_UP;
+            b32 down = pad.Buttons & PSP_CTRL_DOWN;
+            b32 left = pad.Buttons & PSP_CTRL_LEFT;
+            b32 right = pad.Buttons & PSP_CTRL_RIGHT;
+        
+            b32 start = pad.Buttons & PSP_CTRL_START;
+            b32 select = pad.Buttons & PSP_CTRL_SELECT;
+        
+            b32 ltrigger = pad.Buttons & PSP_CTRL_LTRIGGER;
+            b32 rtrigger = pad.Buttons & PSP_CTRL_RTRIGGER;
+
+            if (up) y_offset += 20;
+            if (down) y_offset -= 20;
+            if (right) x_offset += 20;
+            if (left) x_offset -= 20;
+        }
+
         u32 *vram = backbuffer;
 
         if(!disp_buffer) vram += FRAMEBUFFER_SIZE / sizeof(u32);
 
-        u8 *row = (u8*)vram;
-        for(int y = 0; y < SCREEN_HEIGHT; ++y) {
-            u32 *pixel = (u32*)row;
-            for(int x = 0; x < SCREEN_WIDTH; ++x) {
-                u8 green = (u8)(y) * 3;
-                u8 blue = (u8)(x + x_offset) * 3;
-
-                *pixel++ = blue << 16 | green << 8;
-            }
-            row += (BUFF_WIDTH * 4);
-        }
-
-        x_offset++;
+        render_weird_gradient(x_offset, y_offset, vram);
+        
         disp_buffer ^= 1;   
     }
     sceGuTerm();
