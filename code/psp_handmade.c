@@ -1,11 +1,15 @@
 #include <pspkernel.h>
 #include <pspdebug.h>
+#include <pspaudiolib.h>
+#include <pspaudio.h>
 #include <pspdisplay.h>
 #include <pspge.h>
 #include <pspctrl.h>
 #include <pspgu.h>
 
 #include <stdint.h>
+
+#include <math.h>
 
 
 
@@ -31,6 +35,9 @@ typedef unsigned int uint;
 
 typedef uint32_t b32;
 
+typedef float f32;
+typedef double f64;
+
 #define false 0
 #define true 1
 
@@ -44,6 +51,8 @@ PSP_MAIN_THREAD_ATTR(THREAD_ATTR_USER | THREAD_ATTR_VFPU);
 #define BUFF_WIDTH       (512)
 #define PIXEL_SIZE       (4)
 #define FRAMEBUFFER_SIZE (BUFF_WIDTH * SCREEN_HEIGHT * PIXEL_SIZE)
+#define PI32             3.1415926535897932f
+//#define SAMPLES_PER_SECOND 48000
 
 
 /*********************************************************/
@@ -51,22 +60,24 @@ PSP_MAIN_THREAD_ATTR(THREAD_ATTR_USER | THREAD_ATTR_VFPU);
 /*********************************************************/
 global_var usize __attribute__((aligned(16))) list[262144];
 global_var b32 running;
+global_var int samples_per_second;
+global_var f32 tsine;
 
 
 
 /*********************************************************/
 /*                      FUNCTIONS                        */
 /*********************************************************/
-internal int 
-exit_callback(int arg1, int arg2, void *common) 
+internal int
+exit_callback(int arg1, int arg2, void *common)
 {
     running = false;
     //sceKernelExitGame();
     return 0;
 }
 
-internal int 
-callback_thread(SceSize args, void *argp) 
+internal int
+callback_thread(SceSize args, void *argp)
 {
     int cbid;
     cbid = sceKernelCreateCallback("Exit Callback", exit_callback, 0);
@@ -75,8 +86,8 @@ callback_thread(SceSize args, void *argp)
     return 0;
 }
 
-internal int 
-setup_callbacks(void) 
+internal int
+setup_callbacks(void)
 {
     int thid = 0;
     thid = sceKernelCreateThread("Update Thread", callback_thread, 0x11, 0xFA0, 0, 0);
@@ -87,10 +98,10 @@ setup_callbacks(void)
 }
 
 internal void
-render_weird_gradient(i32 x_offset, i32 y_offset, u32 *buffer) 
+render_weird_gradient(i32 x_offset, i32 y_offset, u32 *buffer)
 {
     u8 *row = (u8*)buffer;
-    
+
     for(int y = 0; y < SCREEN_HEIGHT; ++y) {
         u32 *pixel = (u32*)row;
         for(int x = 0; x < SCREEN_WIDTH; ++x) {
@@ -102,10 +113,37 @@ render_weird_gradient(i32 x_offset, i32 y_offset, u32 *buffer)
     }
 }
 
-int 
-main() 
+internal void
+psp_audio_callback(void *buf, uint length, void *userdata)
+{
+    f32 tone_hz = 256.0f;
+    f32 tone_volume = PSP_VOLUME_MAX - 1.0f;
+    int wave_period = samples_per_second / (int)tone_hz;
+
+    i16 *sample_out = (i16*)buf;
+
+    for(int i = 0; i < length; i++) {
+        f32 sine_value = sinf(tsine);
+        i16 s = (i16)(sine_value * tone_volume);
+        *sample_out++ = s;
+        *sample_out++ = s;
+        tsine += 2.0f * PI32 * (1.0f / (f32)wave_period);
+
+        if(tsine > (2.0f * PI32)) tsine -= (f32)(PI32 * 2.0f);
+    }
+
+}
+
+int
+main()
 {
     setup_callbacks();
+
+    // I just don't want to work with audio on lower level
+    pspAudioInit();
+    tsine = 0;
+    samples_per_second = 48000;
+    pspAudioSetChannelCallback(0, psp_audio_callback, 0);
 
     sceCtrlSetSamplingCycle(0);
     sceCtrlSetSamplingMode(PSP_CTRL_MODE_ANALOG);
@@ -142,15 +180,15 @@ main()
             b32 triangle = pad.Buttons & PSP_CTRL_TRIANGLE;
             b32 circle = pad.Buttons & PSP_CTRL_CIRCLE;
             b32 cross = pad.Buttons & PSP_CTRL_CROSS;
-            
+
             b32 up = pad.Buttons & PSP_CTRL_UP;
             b32 down = pad.Buttons & PSP_CTRL_DOWN;
             b32 left = pad.Buttons & PSP_CTRL_LEFT;
             b32 right = pad.Buttons & PSP_CTRL_RIGHT;
-        
+
             b32 start = pad.Buttons & PSP_CTRL_START;
             b32 select = pad.Buttons & PSP_CTRL_SELECT;
-        
+
             b32 ltrigger = pad.Buttons & PSP_CTRL_LTRIGGER;
             b32 rtrigger = pad.Buttons & PSP_CTRL_RTRIGGER;
 
@@ -165,8 +203,8 @@ main()
         if(!disp_buffer) vram += FRAMEBUFFER_SIZE / sizeof(u32);
 
         render_weird_gradient(x_offset, y_offset, vram);
-        
-        disp_buffer ^= 1;   
+
+        disp_buffer ^= 1;
     }
     sceGuTerm();
     sceKernelExitGame();
