@@ -5,6 +5,7 @@
 #include <pspdisplay.h>
 #include <pspge.h>
 #include <pspctrl.h>
+#include <psprtc.h>
 #include <pspgu.h>
 
 #include <stdint.h>
@@ -40,7 +41,6 @@ typedef double f64;
 
 #define false 0
 #define true 1
-
 
 
 PSP_MODULE_INFO("Handmade Hero", 0, 1, 1);
@@ -166,6 +166,10 @@ main()
 
     SceCtrlData pad;
 
+    //TODO: maybe do something else????
+    SceKernelSysClock t1;
+    sceKernelGetSystemTime(&t1);
+
     for(;running;) {
 
         sceCtrlReadBufferPositive(&pad, 1);
@@ -205,6 +209,11 @@ main()
         render_weird_gradient(x_offset, y_offset, vram);
 
         disp_buffer ^= 1;
+
+        SceKernelSysClock t2;
+        sceKernelGetSystemTime(&t2);
+        u64 elapsed_us = t2.low - t1.low;
+        t1 = t2;
     }
     sceGuTerm();
     sceKernelExitGame();

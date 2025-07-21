@@ -17,7 +17,7 @@ CC='psp-gcc'
 TARGET='code/psp_handmade.c'
 BIN=$BINDIR'/handmade.elf'
 FLAGS='-Wall'
-LIBS='-lpspdebug -lpspdisplay -lpspge -lpspctrl -lpspgu -lpspaudiolib -lpspaudio'
+LIBS='-lpsprtc -lpspdebug -lpspdisplay -lpspge -lpspctrl -lpspgu -lpspaudiolib -lpspaudio'
 INCDIR="-I. -I$PSPDEV_PATH/include -I$PSPSDK_PATH/include"
 LIBDIR="-L. -L$PSPDEV_PATH/lib -L$PSPSDK_PATH/lib"
 LDFLAGS='-Wl,-zmax-page-size=128'
