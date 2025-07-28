@@ -1,7 +1,7 @@
 #include "handmade.h"
 
 internal void
-game_update_and_render(GameOffscreenBuffer *b, i32 x_offset, i32 y_offset)
+render_weird_gradient(GameOffscreenBuffer *b, i32 x_offset, i32 y_offset)
 {
     u8 *row = (u8*)b->memory;
 
@@ -14,4 +14,31 @@ game_update_and_render(GameOffscreenBuffer *b, i32 x_offset, i32 y_offset)
         }
         row += (b->pitch);
     }
+}
+
+internal void
+game_output_sound(GameSound *buffer)
+{
+    local_persist f32 tsine;
+
+    f32 tone_hz = 256.0f;
+    int wave_period = buffer->samples_per_second / (int)tone_hz;
+
+    i16 *sample_out = (i16*)buffer->memory;
+
+    for(int i = 0; i < buffer->length; i++) {
+        f32 sine_value = sinf(tsine);
+        i16 s = (i16)(sine_value * buffer->volume);
+        *sample_out++ = s;
+        *sample_out++ = s;
+        tsine += 2.0f * PI32 * (1.0f / (f32)wave_period);
+
+        if(tsine > (2.0f * PI32)) tsine -= (f32)(PI32 * 2.0f);
+    }
+}
+
+internal void
+game_update_and_render(GameOffscreenBuffer *b, i32 x_offset, i32 y_offset)
+{
+    render_weird_gradient(b, x_offset, y_offset);
 }

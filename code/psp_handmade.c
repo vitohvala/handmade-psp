@@ -13,9 +13,6 @@
 
 **********************************************************************/
 
-
-
-
 #include <pspkernel.h>
 #include <pspdebug.h>
 #include <pspaudiolib.h>
@@ -26,15 +23,11 @@
 #include <psprtc.h>
 #include <pspgu.h>
 
-#include <stdint.h>
-
-#include <math.h>
-
-
-
 /**********************************/
 /*             TYPES              */
 /**********************************/
+#include <stdint.h>
+
 #define global_var static
 #define internal static
 #define local_persist static
@@ -60,6 +53,7 @@ typedef double f64;
 #define false 0
 #define true 1
 
+
 #include "handmade.c"
 
 PSP_MODULE_INFO("Handmade Hero", 0, 1, 1);
@@ -70,7 +64,6 @@ PSP_MAIN_THREAD_ATTR(THREAD_ATTR_USER | THREAD_ATTR_VFPU);
 #define BUFF_WIDTH       (512)
 #define PIXEL_SIZE       (4)
 #define FRAMEBUFFER_SIZE (BUFF_WIDTH * SCREEN_HEIGHT * PIXEL_SIZE)
-#define PI32             3.1415926535897932f
 //#define SAMPLES_PER_SECOND 48000
 
 
@@ -79,9 +72,7 @@ PSP_MAIN_THREAD_ATTR(THREAD_ATTR_USER | THREAD_ATTR_VFPU);
 /*********************************************************/
 global_var usize __attribute__((aligned(16))) list[262144];
 global_var b32 running;
-global_var int samples_per_second;
-global_var f32 tsine;
-
+global_var GameSound gsound;
 
 
 /*********************************************************/
@@ -120,22 +111,9 @@ setup_callbacks(void)
 internal void
 psp_audio_callback(void *buf, uint length, void *userdata)
 {
-    f32 tone_hz = 256.0f;
-    f32 tone_volume = PSP_VOLUME_MAX - 1.0f;
-    int wave_period = samples_per_second / (int)tone_hz;
-
-    i16 *sample_out = (i16*)buf;
-
-    for(int i = 0; i < length; i++) {
-        f32 sine_value = sinf(tsine);
-        i16 s = (i16)(sine_value * tone_volume);
-        *sample_out++ = s;
-        *sample_out++ = s;
-        tsine += 2.0f * PI32 * (1.0f / (f32)wave_period);
-
-        if(tsine > (2.0f * PI32)) tsine -= (f32)(PI32 * 2.0f);
-    }
-
+    gsound.memory = buf;
+    gsound.length = length;
+    game_output_sound(&gsound);
 }
 
 int
@@ -145,10 +123,12 @@ main()
 
     // I just don't want to work with audio on lower level
     pspAudioInit();
-    tsine = 0;
-    samples_per_second = 48000;
+    gsound.volume = PSP_VOLUME_MAX - 1.0f;
+    gsound.samples_per_second = 48000;
     pspAudioSetChannelCallback(0, psp_audio_callback, 0);
 
+    //input
+    SceCtrlData pad;
     sceCtrlSetSamplingCycle(0);
     sceCtrlSetSamplingMode(PSP_CTRL_MODE_ANALOG);
 
@@ -157,9 +137,7 @@ main()
     sceGuDispBuffer(SCREEN_WIDTH, SCREEN_HEIGHT, (void*)0, BUFF_WIDTH);
     sceGuDrawBuffer(GU_PSM_8888, (void*)FRAMEBUFFER_SIZE, BUFF_WIDTH);
     sceGuDisplay(GU_TRUE);
-
     sceGuFinish();
-
     u32 *backbuffer = (u32*)(0x40000000 | 0x04000000);
 
     i32 x_offset = 0;
@@ -167,8 +145,6 @@ main()
     i32 disp_buffer = 0;
 
     running = true;
-
-    SceCtrlData pad;
 
     //TODO: maybe do something else????
     SceKernelSysClock t1;
