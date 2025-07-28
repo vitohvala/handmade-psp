@@ -56,6 +56,8 @@ typedef double f64;
 
 #include "handmade.c"
 
+typedef enum PspCtrlButtons PspCtrlButtons;
+
 PSP_MODULE_INFO("Handmade Hero", 0, 1, 1);
 PSP_MAIN_THREAD_ATTR(THREAD_ATTR_USER | THREAD_ATTR_VFPU);
 
@@ -79,7 +81,7 @@ global_var GameSound gsound;
 /*                      FUNCTIONS                        */
 /*********************************************************/
 internal int
-exit_callback(int arg1, int arg2, void *common)
+psp_exit_callback(int arg1, int arg2, void *common)
 {
     running = false;
     //sceKernelExitGame();
@@ -87,20 +89,21 @@ exit_callback(int arg1, int arg2, void *common)
 }
 
 internal int
-callback_thread(SceSize args, void *argp)
+psp_callback_thread(SceSize args, void *argp)
 {
     int cbid;
-    cbid = sceKernelCreateCallback("Exit Callback", exit_callback, 0);
+    cbid = sceKernelCreateCallback("Exit Callback", psp_exit_callback, 0);
     sceKernelRegisterExitCallback(cbid);
     sceKernelSleepThreadCB();
     return 0;
 }
 
 internal int
-setup_callbacks(void)
+psp_setup_callbacks(void)
 {
     int thid = 0;
-    thid = sceKernelCreateThread("Update Thread", callback_thread, 0x11, 0xFA0, 0, 0);
+    thid = sceKernelCreateThread("Update Thread", psp_callback_thread,
+                                 0x11, 0xFA0, 0, 0);
     if(thid >= 0) {
         sceKernelStartThread(thid, 0, 0);
     }
@@ -116,10 +119,18 @@ psp_audio_callback(void *buf, uint length, void *userdata)
     game_output_sound(&gsound);
 }
 
+internal void
+psp_procces_digital_button(uint psp_button_state, PspCtrlButtons button_bit,
+                           GameButtonState *old, GameButtonState *new)
+{
+    new->ended_down = ((psp_button_state & button_bit) == button_bit);
+    new->half_transitionc = (old->ended_down != new->ended_down) ? 1 : 0;
+}
+
 int
 main()
 {
-    setup_callbacks();
+    psp_setup_callbacks();
 
     // I just don't want to work with audio on lower level
     pspAudioInit();
@@ -140,8 +151,6 @@ main()
     sceGuFinish();
     u32 *backbuffer = (u32*)(0x40000000 | 0x04000000);
 
-    i32 x_offset = 0;
-    i32 y_offset = 0;
     i32 disp_buffer = 0;
 
     running = true;
@@ -150,36 +159,73 @@ main()
     SceKernelSysClock t1;
     sceKernelGetSystemTime(&t1);
 
+    GameInput input[2] = {};
+    GameInput *old_input = &input[0];
+    GameInput *new_input = &input[1];
+
+    #if 0
+        // TODO : try 	pspDebugScreenInitEx
+        pspDebugScreenInit();
+    #endif
+
     for(;running;) {
 
         sceCtrlReadBufferPositive(&pad, 1);
 
-        u8 stick_lx = pad.Lx;
-        u8 stick_ly = pad.Ly;
-        //i16 stick_rx = pad.Rx;
-        //i16 stick_ry = pad.Ry;
+        {
+            psp_procces_digital_button(pad.Buttons, PSP_CTRL_SQUARE,
+                                       &old_input->square, &new_input->square);
+            psp_procces_digital_button(pad.Buttons, PSP_CTRL_TRIANGLE,
+                                       &old_input->triangle, &new_input->triangle);
+            psp_procces_digital_button(pad.Buttons, PSP_CTRL_CIRCLE,
+                                       &old_input->circle, &new_input->circle);
+            psp_procces_digital_button(pad.Buttons, PSP_CTRL_CROSS,
+                                       &old_input->cross, &new_input->cross);
 
-        if (pad.Buttons != 0){
-            b32 square = pad.Buttons & PSP_CTRL_SQUARE;
-            b32 triangle = pad.Buttons & PSP_CTRL_TRIANGLE;
-            b32 circle = pad.Buttons & PSP_CTRL_CIRCLE;
-            b32 cross = pad.Buttons & PSP_CTRL_CROSS;
-
-            b32 up = pad.Buttons & PSP_CTRL_UP;
-            b32 down = pad.Buttons & PSP_CTRL_DOWN;
-            b32 left = pad.Buttons & PSP_CTRL_LEFT;
-            b32 right = pad.Buttons & PSP_CTRL_RIGHT;
+            psp_procces_digital_button(pad.Buttons, PSP_CTRL_UP,
+                                       &old_input->up, &new_input->up);
+            psp_procces_digital_button(pad.Buttons, PSP_CTRL_DOWN,
+                                       &old_input->down, &new_input->down);
+            psp_procces_digital_button(pad.Buttons, PSP_CTRL_LEFT,
+                                       &old_input->left, &new_input->left);
+            psp_procces_digital_button(pad.Buttons, PSP_CTRL_RIGHT,
+                                       &old_input->right, &new_input->right);
 
             b32 start = pad.Buttons & PSP_CTRL_START;
             b32 select = pad.Buttons & PSP_CTRL_SELECT;
 
-            b32 ltrigger = pad.Buttons & PSP_CTRL_LTRIGGER;
-            b32 rtrigger = pad.Buttons & PSP_CTRL_RTRIGGER;
+            psp_procces_digital_button(pad.Buttons, PSP_CTRL_LTRIGGER,
+                                       &old_input->ltrigger,
+                                       &new_input->ltrigger);
+            psp_procces_digital_button(pad.Buttons, PSP_CTRL_RTRIGGER,
+                                       &old_input->rtrigger,
+                                       &new_input->rtrigger);
 
-            if (up) y_offset += 20;
-            if (down) y_offset -= 20;
-            if (right) x_offset += 20;
-            if (left) x_offset -= 20;
+            f32 sticklx = 0, stickly = 0;
+            if (pad.Lx < 128) {
+                sticklx = ((f32)pad.Lx - 128.0f) / 128.0f;
+            } else {
+                sticklx = ((f32)pad.Lx - 128.0f) / 127.0f;
+            }
+
+            if (pad.Ly < 128) {
+                stickly = ((f32)pad.Ly - 128.0f) / 128.0f;
+            } else {
+                stickly = ((f32)pad.Ly - 128.0f) / 127.0f;
+            }
+
+            new_input->startx = old_input->endx;
+            new_input->starty = old_input->endy;
+
+            new_input->minx = new_input->maxx = new_input->endx = sticklx;
+            new_input->miny = new_input->maxy = new_input->endy = stickly;
+
+            new_input->is_analog = true;
+
+            #if 0
+                pspDebugScreenSetXY(0, 0);
+                pspDebugScreenPrintf("%f\n", sticklx);
+            #endif
         }
 
         u32 *vram = backbuffer;
@@ -194,7 +240,7 @@ main()
         ob.width = SCREEN_WIDTH;
         ob.pitch = BUFF_WIDTH * 4;
 
-        game_update_and_render(&ob, x_offset, y_offset);
+        game_update_and_render(&ob, new_input);
 
         disp_buffer ^= 1;
 
@@ -202,6 +248,11 @@ main()
         sceKernelGetSystemTime(&t2);
         u64 elapsed_us = t2.low - t1.low;
         t1 = t2;
+
+        GameInput *tmp_input = old_input;
+        old_input = new_input;
+        new_input = tmp_input;
+
     }
     sceGuTerm();
     sceKernelExitGame();
