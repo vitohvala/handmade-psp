@@ -1,3 +1,21 @@
+/*********************************************************************
+
+    TODO :
+
+        - Saved game locations
+        - Getting a handle to our own executable file
+        - Asset loading path
+        - ??Multithreading (launch a thread)
+        - Sleep/timeBeginPeriod
+        - QueryCancelAutoplay ?????
+        - Hardware acceleration (pspgu)
+
+
+**********************************************************************/
+
+
+
+
 #include <pspkernel.h>
 #include <pspdebug.h>
 #include <pspaudiolib.h>
@@ -42,6 +60,7 @@ typedef double f64;
 #define false 0
 #define true 1
 
+#include "handmade.c"
 
 PSP_MODULE_INFO("Handmade Hero", 0, 1, 1);
 PSP_MAIN_THREAD_ATTR(THREAD_ATTR_USER | THREAD_ATTR_VFPU);
@@ -97,21 +116,6 @@ setup_callbacks(void)
     return thid;
 }
 
-internal void
-render_weird_gradient(i32 x_offset, i32 y_offset, u32 *buffer)
-{
-    u8 *row = (u8*)buffer;
-
-    for(int y = 0; y < SCREEN_HEIGHT; ++y) {
-        u32 *pixel = (u32*)row;
-        for(int x = 0; x < SCREEN_WIDTH; ++x) {
-            u8 green = (u8)((y + y_offset) * 2);
-            u8 blue = (u8)((x + x_offset) * 2);
-            *pixel++ = blue << 16 | green << 8;
-        }
-        row += (BUFF_WIDTH * 4);
-    }
-}
 
 internal void
 psp_audio_callback(void *buf, uint length, void *userdata)
@@ -206,7 +210,15 @@ main()
 
         if(!disp_buffer) vram += FRAMEBUFFER_SIZE / sizeof(u32);
 
-        render_weird_gradient(x_offset, y_offset, vram);
+        //render_weird_gradient(x_offset, y_offset, vram);
+
+        GameOffscreenBuffer ob;
+        ob.memory = (void *)vram;
+        ob.height = SCREEN_HEIGHT;
+        ob.width = SCREEN_WIDTH;
+        ob.pitch = BUFF_WIDTH * 4;
+
+        game_update_and_render(&ob, x_offset, y_offset);
 
         disp_buffer ^= 1;
 
