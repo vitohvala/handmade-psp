@@ -20,7 +20,7 @@ FLAGS='-Wall'
 LIBS='-lpsprtc -lpspdebug -lpspdisplay -lpspge -lpspctrl -lpspgu -lpspaudiolib -lpspaudio'
 INCDIR="-I. -I$PSPDEV_PATH/include -I$PSPSDK_PATH/include"
 LIBDIR="-L. -L$PSPDEV_PATH/lib -L$PSPSDK_PATH/lib"
-LDFLAGS='-Wl,-zmax-page-size=128'
+LDFLAGS='-Wl,-zmax-page-size=128 -DHANDMADE_SLOW'
 
 if [ ! -d $BINDIR ]; then
     mkdir $BINDIR

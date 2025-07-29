@@ -139,12 +139,25 @@ main()
 
     //int sceKernelGetModel 	( 	void  		) 	todo:<<<<
 
+    //KernelMem functions for allocation??????
+
     void *mem = malloc(gsound.samples_per_second * sizeof(i16));
     if(mem == NULL) {
         return - 1;
     }
 
     gsound.memory = mem;
+
+    GameMemory gmem = {};
+    gmem.permanent.size = Megabytes(10);
+    gmem.transient.size = Megabytes(6);
+    usize total_size = gmem.permanent.size + gmem.transient.size;
+    gmem.permanent.memory = malloc(total_size);
+    gmem.transient.memory = (u8*)gmem.permanent.memory + gmem.permanent.size;
+
+    if(!gmem.permanent.memory || !gmem.transient.memory) return -1;
+
+    gmem.is_init = false;
 
     //input
     SceCtrlData pad;
@@ -249,7 +262,7 @@ main()
         ob.pitch = BUFF_WIDTH * 4;
 
         //game_output_sound(&gsound);
-        game_update_and_render(&ob, new_input, &gsound);
+        game_update_and_render(&gmem, &ob, new_input, &gsound);
 
 
         sceAudioOutputPannedBlocking(chnum,

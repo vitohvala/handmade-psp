@@ -38,24 +38,29 @@ game_output_sound(GameSound *buffer, f32 tone_hz)
 }
 
 internal void
-game_update_and_render(GameOffscreenBuffer *b, GameInput *input,
-                       GameSound *sound)
+game_update_and_render(GameMemory *mem,GameOffscreenBuffer *b,
+                       GameInput *input, GameSound *sound)
 {
-    local_persist i32 x_offset = 0;
-    local_persist i32 y_offset = 0;
-    local_persist f32 tone_hz = 256;
+    Assert(sizeof(GameState) <= mem->permanent.size);
+    GameState *state = (GameState*)mem->permanent.memory;
+    if(!mem->is_init) {
+        state->xoffset = 0;
+        state->yoffset = 0;
+        state->tone_hz = 256;
+        mem->is_init = true;
+    }
 
     if (input->is_analog) {
-        x_offset += (int)(8.0f * input->endx);
-        tone_hz = 256 + (int)(128.0f * (input->endy));
+        state->xoffset += (int)(8.0f * input->endx);
+        state->tone_hz = 256 + (int)(128.0f * (input->endy));
     } else {
         // NOTE: Use digital movement tuning
     }
     if(input->down.ended_down) {
-        y_offset += 1;
+        state->yoffset += 1;
     }
 
 
-    game_output_sound(sound, tone_hz);
-    render_weird_gradient(b, x_offset, y_offset);
+    game_output_sound(sound, state->tone_hz);
+    render_weird_gradient(b, state->xoffset, state->yoffset);
 }
