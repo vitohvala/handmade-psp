@@ -1,7 +1,5 @@
 #include "handmade.h"
 
-global_var f32 tone_hz;
-
 internal void
 render_weird_gradient(GameOffscreenBuffer *b, i32 x_offset, i32 y_offset)
 {
@@ -19,7 +17,7 @@ render_weird_gradient(GameOffscreenBuffer *b, i32 x_offset, i32 y_offset)
 }
 
 internal void
-game_output_sound(GameSound *buffer)
+game_output_sound(GameSound *buffer, f32 tone_hz)
 {
     local_persist f32 tsine;
 
@@ -40,27 +38,24 @@ game_output_sound(GameSound *buffer)
 }
 
 internal void
-game_update_and_render(GameOffscreenBuffer *b, GameInput *input)
+game_update_and_render(GameOffscreenBuffer *b, GameInput *input,
+                       GameSound *sound)
 {
     local_persist i32 x_offset = 0;
     local_persist i32 y_offset = 0;
+    local_persist f32 tone_hz = 256;
 
-    if (input->is_analog)
-    {
+    if (input->is_analog) {
         x_offset += (int)(8.0f * input->endx);
         tone_hz = 256 + (int)(128.0f * (input->endy));
-    }
-    else
-    {
+    } else {
         // NOTE: Use digital movement tuning
     }
-    if(input->down.ended_down)
-    {
+    if(input->down.ended_down) {
         y_offset += 1;
     }
 
 
+    game_output_sound(sound, tone_hz);
     render_weird_gradient(b, x_offset, y_offset);
-
-
 }

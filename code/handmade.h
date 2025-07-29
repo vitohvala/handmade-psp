@@ -17,6 +17,7 @@ typedef struct {
     void *memory;
     int length;
     int samples_per_second;
+    //  should this be max_volume????
     f32 volume;
 } GameSound;
 
@@ -47,7 +48,8 @@ typedef struct {
     GameButtonState cross;
 } GameInput;
 
-internal void game_update_and_render(GameOffscreenBuffer *b, GameInput *input);
-internal void game_output_sound(GameSound *buffer);
+internal void game_update_and_render(GameOffscreenBuffer *b, GameInput *input,
+                                     GameSound *sound);
+//internal void game_output_sound(GameSound *buffer);
 
 #endif

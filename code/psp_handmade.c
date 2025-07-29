@@ -15,13 +15,14 @@
 
 #include <pspkernel.h>
 #include <pspdebug.h>
-#include <pspaudiolib.h>
 #include <pspaudio.h>
 #include <pspdisplay.h>
 #include <pspge.h>
 #include <pspctrl.h>
 #include <psprtc.h>
 #include <pspgu.h>
+
+#include <stdlib.h>
 
 /**********************************/
 /*             TYPES              */
@@ -60,6 +61,7 @@ typedef enum PspCtrlButtons PspCtrlButtons;
 
 PSP_MODULE_INFO("Handmade Hero", 0, 1, 1);
 PSP_MAIN_THREAD_ATTR(THREAD_ATTR_USER | THREAD_ATTR_VFPU);
+//PSP_HEAP_SIZE_KB(20 * 1024 * 1024);
 
 #define SCREEN_WIDTH     (480)
 #define SCREEN_HEIGHT    (272)
@@ -110,15 +112,6 @@ psp_setup_callbacks(void)
     return thid;
 }
 
-
-internal void
-psp_audio_callback(void *buf, uint length, void *userdata)
-{
-    gsound.memory = buf;
-    gsound.length = length;
-    game_output_sound(&gsound);
-}
-
 internal void
 psp_procces_digital_button(uint psp_button_state, PspCtrlButtons button_bit,
                            GameButtonState *old, GameButtonState *new)
@@ -130,13 +123,28 @@ psp_procces_digital_button(uint psp_button_state, PspCtrlButtons button_bit,
 int
 main()
 {
+    //int total_mem_start = sceKernelMaxFreeMemSize();
     psp_setup_callbacks();
 
-    // I just don't want to work with audio on lower level
-    pspAudioInit();
-    gsound.volume = PSP_VOLUME_MAX - 1.0f;
+    gsound.volume = PSP_AUDIO_VOLUME_MAX - 1.0f;
     gsound.samples_per_second = 48000;
-    pspAudioSetChannelCallback(0, psp_audio_callback, 0);
+    gsound.length = 1024; // 30fps?
+
+    int chnum = sceAudioChReserve(PSP_AUDIO_NEXT_CHANNEL,
+                                  PSP_AUDIO_SAMPLE_ALIGN(1024),
+                                  PSP_AUDIO_FORMAT_STEREO);
+    if(chnum < 0) {
+        return -1;
+    }
+
+    //int sceKernelGetModel 	( 	void  		) 	todo:<<<<
+
+    void *mem = malloc(gsound.samples_per_second * sizeof(i16));
+    if(mem == NULL) {
+        return - 1;
+    }
+
+    gsound.memory = mem;
 
     //input
     SceCtrlData pad;
@@ -163,7 +171,7 @@ main()
     GameInput *old_input = &input[0];
     GameInput *new_input = &input[1];
 
-    #if 0
+    #if 1
         // TODO : try 	pspDebugScreenInitEx
         pspDebugScreenInit();
     #endif
@@ -240,9 +248,15 @@ main()
         ob.width = SCREEN_WIDTH;
         ob.pitch = BUFF_WIDTH * 4;
 
-        game_update_and_render(&ob, new_input);
+        //game_output_sound(&gsound);
+        game_update_and_render(&ob, new_input, &gsound);
 
+
+        sceAudioOutputPannedBlocking(chnum,
+                                    gsound.volume, gsound.volume,
+                                    gsound.memory);
         disp_buffer ^= 1;
+
 
         SceKernelSysClock t2;
         sceKernelGetSystemTime(&t2);
@@ -254,6 +268,7 @@ main()
         new_input = tmp_input;
 
     }
+    sceAudioChRelease(chnum);
     sceGuTerm();
     sceKernelExitGame();
     return 0;
